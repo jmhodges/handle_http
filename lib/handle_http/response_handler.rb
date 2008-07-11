@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 require 'handle_http/errors'
-require 'handle_http/callbacks'
 
 module HandleHttp
   class ResponseHandler
@@ -13,7 +12,15 @@ module HandleHttp
     end
 
     def http_callback
-      if callback_method = find_http_callback
+      # The first returns a method name if the object specifically handles the 
+      # response's status code. The second returns a method name if we don't 
+      # handle the status code specifically, but do handle the entire class of
+      # status codes (i.e. '1xx', '2xx', etc.).
+
+      callback_method = find_http_callback(response.code) || 
+                        find_http_callback(response.code[0,1]+'xx')
+      
+      if callback_method
         return send_http_callback(callback_method)
       end
       
@@ -21,20 +28,9 @@ module HandleHttp
       raise StatusCodeToErrorMap[response.code[0,1]].new(response)
     end
     
-    def find_http_callback
-      # If the object specifically handles this status code 
-      find_callback_or_alternate_callback(response.code) ||
-      
-      # If we don't handle the status code specifically, but do handle the 
-      # entire class of status codes (i.e. '1xx', '2xx', etc.).
-      find_callback_or_alternate_callback(response.code[0,1]+'xx')
-    end
-    
-    def find_callback_or_alternate_callback(callback_id)
-      meth = "on_#{callback_id}"
+    def find_http_callback(http_callback_meth)
+      meth = "on_#{http_callback_meth}"
       return meth if respond_to? meth
-      
-      alternate_callbacks[callback_id].find{|m| respond_to? m }
     end
     
     # This enables derived classes to easily change what happens when the 
@@ -42,20 +38,6 @@ module HandleHttp
     # to the callback method. This makes things pretty cool.
     def send_http_callback(callback_method)
       send(callback_method, response, extras)
-    end
-    
-    # Meta magic to ensure that inheriting objects do not change its ancestors'
-    # alternate callbacks when it modifies its own.
-    def self.alternate_callbacks
-      @alternate_callbacks ||= HandleHttp::AlternateCallbacks
-    end
-
-    def alternate_callbacks
-      self.class.alternate_callbacks
-    end
-    
-    def self.inherited(subclass)
-      subclass.instance_variable_set(:@alternate_callbacks, Marshal.load(Marshal.dump(alternate_callbacks)))
     end
   end
 end
