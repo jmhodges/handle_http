@@ -3,15 +3,11 @@ require 'handle_http/errors'
 
 module HandleHttp
   class ResponseHandler
-    attr_reader :response, :extras
-    
     def initialize(response, extras={})
-      @response = response
-      @extras = extras
-      http_callback
+      http_callback(response, extras)
     end
 
-    def http_callback
+    def http_callback(response, extras)
       # The first returns a method name if the object specifically handles the 
       # response's status code. The second returns a method name if we don't 
       # handle the status code specifically, but do handle the entire class of
